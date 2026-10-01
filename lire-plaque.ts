@@ -43,6 +43,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return reponse({ erreur: "Méthode non autorisée" }, 405);
 
+  // Seuls les utilisateurs connectés à l'application peuvent utiliser l'IA
+  const auth = req.headers.get("Authorization") || "";
+  const apikey = req.headers.get("apikey") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const urlProjet = Deno.env.get("SUPABASE_URL");
+  if (!auth.startsWith("Bearer ") || !urlProjet) return reponse({ erreur: "Connexion requise." }, 401);
+  const qui = await fetch(`${urlProjet}/auth/v1/user`, { headers: { Authorization: auth, apikey } });
+  if (!qui.ok) return reponse({ erreur: "Connexion requise." }, 401);
+
   const cle = Deno.env.get("ANTHROPIC_API_KEY");
   if (!cle) return reponse({ erreur: "La clé ANTHROPIC_API_KEY n'est pas configurée." }, 500);
   const modele = Deno.env.get("CLAUDE_MODEL") || "claude-haiku-4-5-20251001";

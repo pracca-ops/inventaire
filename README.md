@@ -5,7 +5,9 @@ Application web d'inventaire du matériel du laboratoire de GéoConsulting Sarl 
 - Fiches avec photos (appareil, plaque signalétique, autre vue), état, site, étalonnage, remarques
 - Tableau de bord : total, à vérifier, pannes et réparations, étalonnages échus ou à moins de 30 jours
 - Mise à jour en temps réel entre les téléphones de l'équipe
-- Import de l'ancien inventaire Excel ou CSV, export CSV pour Excel
+- Import de l'ancien inventaire Excel **avec ses images**, CSV ou sauvegarde .zip
+- Export Excel avec une miniature par ligne, sauvegarde complète .zip (Excel + toutes les photos)
+- Association de photos en lot d'après le nom du fichier (identifiant ou n° de série)
 - Lecture des plaques par IA (optionnelle)
 - Thème clair et sombre, installable sur l'écran d'accueil Android
 

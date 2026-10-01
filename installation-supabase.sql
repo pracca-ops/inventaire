@@ -110,6 +110,15 @@ create policy "materiel_modif"       on public.materiel for update to authentica
 create policy "materiel_suppression" on public.materiel for delete to authenticated using (true);
 
 
+-- Droits d'accès explicites (utile si l'option « exposer automatiquement
+-- les nouvelles tables » a été décochée à la création du projet)
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.materiel to authenticated;
+grant select, update on public.profils to authenticated;
+revoke all on public.materiel from anon;
+revoke all on public.profils from anon;
+
+
 -- 4. Mise à jour en temps réel sur tous les téléphones --------------------
 do $$
 begin

@@ -675,3 +675,9 @@ table.preview tr:last-child td { border-bottom: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
+
+/* Boutons de la rubrique Données pendant un export */
+.row-link.is-busy { pointer-events: none; }
+.row-link.is-busy > .i:last-child { display: none; }
+.row-link.is-busy::after { content: ""; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--ink-3); border-right-color: transparent; animation: spin .7s linear infinite; }
+.row-link.is-busy small { color: var(--accent); font-weight: 700; }

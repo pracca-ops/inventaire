@@ -2,13 +2,14 @@ import { createBackend } from "./data.js";
 import {
   SITES, CATEGORIES, ETATS, SLOTS, etatClass, esc, norm, newId, fmtDate, fmtDateTime, fmtDateFR, relTime,
   calibration, daysUntil, parseISODate, isToCheck, isBroken, isCalibDue, initials, plural, debounce, frError,
-  download, csvCell, todayISO,
+  todayISO,
 } from "./utils.js";
 import { compressPhoto, makeThumb, toBase64ForAI } from "./images.js";
 import { icon, catIcon, CONTOUR_ART } from "./icons.js";
-import { renderImport } from "./importer.js";
+import { renderImport, renderPhotoBatch } from "./importer.js";
+import { exportInventory, downloadBlob } from "./transfert.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const app = document.getElementById("app");
 const dock = document.getElementById("dock");
 
@@ -72,6 +73,7 @@ function route() {
   if (a === "modifier" && id) return { name: "form", id };
   if (a === "outils") return { name: "tools" };
   if (a === "import") return { name: "import" };
+  if (a === "photos") return { name: "photos" };
   return { name: "list" };
 }
 
@@ -107,7 +109,14 @@ function render() {
     return renderImport({
       app, be: S.be, items: () => S.items, toast, icon, back: () => back("#/outils"),
       onImported: (rows) => { for (const r of rows) upsertLocal(r); },
-      showToCheck: () => { S.filters = { q: "", site: "", etat: "", cat: "", tile: "check" }; go("#/", { replace: true }); },
+      showToCheck: () => { S.filters = { q: "", site: "", etat: "", cat: "", tile: "check" }; S.listY = 0; go("#/", { replace: true }); },
+    });
+  }
+  if (r.name === "photos") {
+    return renderPhotoBatch({
+      app, be: S.be, items: () => S.items, toast, icon, back: () => back("#/outils"),
+      onImported: (rows) => { for (const r of rows) upsertLocal(r); },
+      home: () => { S.listY = 0; go("#/", { replace: true }); },
     });
   }
   return viewList();
@@ -940,23 +949,29 @@ function applyTheme(t) {
   else document.documentElement.setAttribute("data-theme", t);
 }
 
-function exportCSV() {
+// Export Excel (miniatures) ou sauvegarde .zip (Excel + toutes les photos)
+async function runExport(btn, withPhotos) {
   if (!S.items.length) { toast("L'inventaire est vide : rien à exporter.", "info"); return; }
-  const cols = [
-    ["Identifiant", (i) => i.id], ["Désignation", (i) => i.designation], ["Catégorie", (i) => i.categorie],
-    ["Marque", (i) => i.marque], ["Modèle", (i) => i.modele], ["N° de série", (i) => i.numero_serie],
-    ["Accessoires", (i) => i.accessoires], ["État", (i) => i.etat], ["Quantité", (i) => i.quantite],
-    ["Site", (i) => i.site], ["Emplacement", (i) => i.emplacement],
-    ["Dernier étalonnage", (i) => fmtDateFR(i.etalonnage_dernier)], ["Prochain étalonnage", (i) => fmtDateFR(i.etalonnage_prochain)],
-    ["Remarques", (i) => i.remarques], ["À confirmer", (i) => (i.a_confirmer ? "Oui" : "Non")],
-    ["Créée le", (i) => fmtDateFR((i.cree_le || "").slice(0, 10))], ["Créée par", (i) => nameOf(i.cree_par)],
-    ["Modifiée le", (i) => fmtDateFR((i.modifie_le || "").slice(0, 10))], ["Modifiée par", (i) => nameOf(i.modifie_par)],
-    ["Nombre de photos", (i) => Object.keys(i.photos || {}).length],
-  ];
-  const lines = [cols.map((c) => csvCell(c[0])).join(";")];
-  for (const it of S.items) lines.push(cols.map((c) => csvCell(c[1](it))).join(";"));
-  download(`inventaire-geoconsulting-${todayISO()}.csv`, "﻿" + lines.join("\r\n"));
-  toast(`${plural(S.items.length, "fiche exportée", "fiches exportées")}`);
+  if (btn.classList.contains("is-busy")) return;
+  const sub = btn.querySelector("small");
+  const before = sub.textContent;
+  btn.classList.add("is-busy");
+  try {
+    const res = await exportInventory({
+      items: S.items, be: S.be, nameOf, withPhotos,
+      onProgress: (t) => { sub.textContent = t; },
+    });
+    downloadBlob(res.name, res.blob);
+    const mo = (res.blob.size / 1048576).toFixed(1).replace(".", ",");
+    toast(withPhotos
+      ? `Sauvegarde prête : ${plural(S.items.length, "fiche", "fiches")}, ${plural(res.photos, "photo", "photos")} (${mo} Mo)${res.failed ? ` · ${res.failed} non récupérée(s)` : ""}`
+      : `${plural(S.items.length, "fiche exportée", "fiches exportées")} avec les miniatures`, res.failed ? "info" : "ok", 5000);
+  } catch (ex) {
+    toast(ex?.message && !/fetch/i.test(ex.message) ? ex.message : frError(ex), "err", 5000);
+  } finally {
+    btn.classList.remove("is-busy");
+    sub.textContent = before;
+  }
 }
 
 function viewTools() {
@@ -995,11 +1010,19 @@ function viewTools() {
           <div class="rows">
             <a class="row-link" href="#/import" data-nav>
               <span class="ic acc">${icon("upload")}</span>
-              <span><b>Importer un fichier</b><small>Ancien inventaire Excel (.xlsx, .xls) ou CSV</small></span>${icon("chevron")}
+              <span><b>Importer un fichier</b><small>Excel avec ses images, CSV ou sauvegarde .zip</small></span>${icon("chevron")}
             </a>
-            <button class="row-link" id="export">
+            <a class="row-link" href="#/photos" data-nav>
+              <span class="ic acc">${icon("image")}</span>
+              <span><b>Associer des photos en lot</b><small>Nom du fichier = identifiant ou n° de série</small></span>${icon("chevron")}
+            </a>
+            <button class="row-link" id="export-xlsx">
               <span class="ic">${icon("download")}</span>
-              <span><b>Exporter en CSV</b><small>${plural(c.total, "fiche", "fiches")} · s'ouvre dans Excel</small></span>${icon("chevron")}
+              <span><b>Exporter en Excel</b><small>${plural(c.total, "fiche", "fiches")} · une miniature par ligne</small></span>${icon("chevron")}
+            </button>
+            <button class="row-link" id="export-zip">
+              <span class="ic">${icon("box")}</span>
+              <span><b>Sauvegarde complète (.zip)</b><small>Excel + toutes les photos en taille réelle</small></span>${icon("chevron")}
             </button>
           </div>
         </section>
@@ -1036,7 +1059,8 @@ function viewTools() {
       document.querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-pressed", String(b === th)));
       return;
     }
-    if (e.target.closest("#export")) return exportCSV();
+    const ex = e.target.closest("#export-xlsx, #export-zip");
+    if (ex) return runExport(ex, ex.id === "export-zip");
     if (e.target.closest("#install-btn") && S.installPrompt) {
       S.installPrompt.prompt();
       const r = await S.installPrompt.userChoice.catch(() => null);

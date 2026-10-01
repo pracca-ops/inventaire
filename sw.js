@@ -1,6 +1,6 @@
 // Service worker : permet l'installation sur l'écran d'accueil et ouvre
 // l'application plus vite. Les données (Supabase) ne sont jamais mises en cache.
-const VERSION = "gc-inventaire-v2";
+const VERSION = "gc-inventaire-v3";
 const COQUILLE = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const COQUILLE = [
   "./images.js",
   "./icons.js",
   "./importer.js",
+  "./transfert.js",
   "./contours.svg",
   "./icon.svg",
   "./icon-192.png",

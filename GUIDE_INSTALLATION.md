@@ -35,8 +35,8 @@ Application web d'inventaire du matériel, utilisable sur le téléphone (Androi
    - Cochez **Public**. L'offre gratuite de GitHub Pages l'exige. Le code sera visible, mais **aucune donnée** ne s'y trouve : les fiches restent protégées dans Supabase.
    - Cliquez sur **Create repository**.
 3. Sur la page du dépôt, cliquez sur le lien **uploading an existing file** (ou sur **Add file**, puis **Upload files**).
-4. Cliquez sur **choose your files**. Dans la fenêtre qui s'ouvre, allez dans le dossier `inventaire-geoconsulting`, appuyez sur **Ctrl + A** pour sélectionner **les 27 fichiers**, puis cliquez sur **Ouvrir**.
-5. Attendez que les 27 fichiers apparaissent dans la liste, puis cliquez sur **Commit changes**.
+4. Cliquez sur **choose your files**. Dans la fenêtre qui s'ouvre, allez dans le dossier `inventaire-geoconsulting`, appuyez sur **Ctrl + A** pour sélectionner **les 30 fichiers**, puis cliquez sur **Ouvrir**.
+5. Attendez que les 30 fichiers apparaissent dans la liste, puis cliquez sur **Commit changes**.
    > Si le dépôt contenait déjà des fichiers de même nom, ils sont simplement remplacés.
 6. Allez dans **Settings** (onglet du dépôt), puis **Pages** dans le menu de gauche.
    - *Source* : **Deploy from a branch**
@@ -73,7 +73,7 @@ Application web d'inventaire du matériel, utilisable sur le téléphone (Androi
 La clé publique de l'application est visible dans le code sur GitHub. Si les inscriptions restent ouvertes, **n'importe qui pourrait se créer un compte** et voir ou modifier l'inventaire. Il faut donc les fermer.
 
 1. Menu de gauche : **Authentication**.
-2. Ouvrez la rubrique **Sign In / Providers**. Selon la version, elle peut aussi s'appeler **Providers** ou se trouver dans **Settings**.
+2. Ouvrez la rubrique des réglages généraux (**General configuration**, ou **Sign In / Providers** selon la version de Supabase).
 3. **Désactivez** l'option **« Allow new users to sign up »**, puis cliquez sur **Save**.
 
 À partir de là, seuls les comptes que vous créez vous-même (étape 4) peuvent se connecter.
@@ -136,7 +136,7 @@ Cette étape ajoute le bouton **« Remplir depuis les photos »** : l'IA lit la 
 3. **Fonction** : **Edge Functions**, puis **Deploy a new function**, puis **Via Editor**.
    - Nommez la fonction exactement `lire-plaque`.
    - Remplacez le code d'exemple par le contenu du fichier `lire-plaque.ts` (ouvrez-le avec le Bloc-notes).
-   - Cliquez sur **Deploy function**. Laissez l'option *Verify JWT* activée : seuls les utilisateurs connectés pourront s'en servir.
+   - Cliquez sur **Deploy function**. La fonction vérifie elle-même que la personne est connectée à l'application : personne d'autre ne peut consommer votre crédit.
 4. **Activation** : sur GitHub, modifiez `config.js` et remplacez `IA_ACTIVE: false` par `IA_ACTIVE: true`, puis **Commit changes**.
 
 ✅ **Vérification :** dans le formulaire d'ajout, le bouton bleu **« Remplir depuis les photos »** apparaît. Photographiez une plaque et appuyez dessus. Les champs proposés s'affichent en bleu avec la mention « suggéré ».
@@ -145,7 +145,7 @@ Cette étape ajoute le bouton **« Remplir depuis les photos »** : l'IA lit la 
 
 ---
 
-## Étape 8 — Importer l'ancien inventaire Excel
+## Étape 8 — Importer l'ancien inventaire Excel (avec ses images)
 
 1. Dans l'application : **Outils**, puis **Importer un fichier**, puis choisissez `Base de données matériel labo.xlsx`.
 2. **Feuille** : les feuilles s'importent **une par une** (Balance, Moules Proctor + CBR, etc.).
@@ -157,6 +157,8 @@ Cette étape ajoute le bouton **« Remplir depuis les photos »** : l'IA lit la 
    - ignorer les numéros de série déjà présents, pour éviter les doublons si on importe deux fois.
 6. Contrôlez l'**aperçu**, puis appuyez sur **Importer**. À la fin, choisissez **« Importer une autre feuille »** pour continuer.
 
+**Les images du fichier Excel sont importées** : une image posée dans une ligne (ou placée « dans la cellule » avec Excel 365) est ajoutée à la fiche de cette ligne, jusqu'à 3 par ligne (Appareil, Plaque, Autre vue, dans l'ordre des colonnes). L'écran de correspondance indique combien de photos ont été trouvées.
+
 Toutes les fiches importées sont marquées **« À confirmer »**. Passez ensuite dans le labo avec le téléphone : sur chaque fiche, ajoutez les photos, corrigez si besoin, puis touchez **« Marquer comme vérifiée »**.
 
 Règles appliquées automatiquement :
@@ -165,6 +167,19 @@ Règles appliquées automatiquement :
 - **ID/Nombre** : un nombre devient la quantité ; un texte (`Bal05`, `PB001`…) devient l'identifiant (n° de série).
 
 ---
+
+## Photos : export, sauvegarde et ajout en lot
+
+Tout se trouve dans **Outils**, rubrique **Données** :
+
+| Action | Résultat |
+|---|---|
+| **Exporter en Excel** | Un fichier `.xlsx` avec toutes les fiches et **une miniature de la photo sur chaque ligne**. |
+| **Sauvegarde complète (.zip)** | Le fichier Excel **et toutes les photos en taille réelle** dans un dossier `photos`, nommées `GC-XXXXX_appareil.jpg`, `GC-XXXXX_plaque.jpg`, `GC-XXXXX_autre-vue.jpg`. Dans l'Excel, les liens « Voir la photo » ouvrent la photo (après avoir décompressé le dossier). À faire de préférence sur ordinateur. |
+| **Importer un fichier** → choisir le `.zip` | **Restaure** une sauvegarde : fiches, identifiants et photos. Les fiches déjà présentes (même identifiant) sont ignorées : on peut restaurer sans créer de doublons. |
+| **Associer des photos en lot** | Choisissez plusieurs photos : chacune rejoint la fiche dont l'**identifiant** (`GC-7K3PX.jpg`) ou le **n° de série** (`B425718362.jpg`) figure dans son nom. Ajoutez `plaque` ou `autre` dans le nom pour choisir la case (`GC-7K3PX_plaque.jpg`). |
+
+Conseil : faites une **sauvegarde complète chaque mois** et gardez-la sur un disque ou dans le Drive de l'entreprise.
 
 ## Mettre à jour l'application plus tard
 
@@ -177,7 +192,7 @@ Pour remplacer un fichier (par exemple `app.css`) : dans le dépôt GitHub, **Ad
 | Problème | Solution |
 |---|---|
 | Page blanche ou erreur 404 | Vérifiez que Pages est activé (étape 1.6) et attendez 2 minutes. |
-| Texte brut « Chargement de l'inventaire… » sans couleurs | Des fichiers manquent sur GitHub. Vérifiez que les **27 fichiers** sont bien dans le dépôt, puis rechargez avec **Ctrl + Maj + R**. |
+| Texte brut « Chargement de l'inventaire… » sans couleurs | Des fichiers manquent sur GitHub. Vérifiez que les **30 fichiers** sont bien dans le dépôt, puis rechargez avec **Ctrl + Maj + R**. |
 | Toujours « Mode démo » après l'étape 5 | Vérifiez `config.js` : les valeurs doivent être **entre guillemets**, avec les virgules en fin de ligne. Rechargez deux fois. |
 | « Email ou mot de passe incorrect » | Vérifiez que le compte existe dans **Authentication → Users** et qu'il a été créé avec **Auto Confirm User**. |
 | « Accès refusé » | Le script SQL n'a pas été exécuté en entier : relancez-le (étape 2). |
@@ -194,18 +209,18 @@ Pour remplacer un fichier (par exemple `app.css`) : dans le dépôt GitHub, **Ad
 - **Photos : 1 Go**, soit environ **3 000 photos**. Chaque photo est compressée dans le téléphone (environ 300 Ko).
 - **Pause après 7 jours sans aucune activité** (voir le tableau ci-dessus).
 
-## Contenu du dossier (27 fichiers, tous au même niveau)
+## Contenu du dossier (30 fichiers, tous au même niveau)
 
 | Fichier | Rôle |
 |---|---|
 | `index.html` | page de l'application |
 | `config.js` | **le seul fichier à modifier** : adresse et clé Supabase, activation de l'IA |
-| `app.js`, `data.js`, `importer.js`, `utils.js`, `images.js`, `icons.js` | fonctionnement de l'application |
+| `app.js`, `data.js`, `importer.js`, `transfert.js`, `utils.js`, `images.js`, `icons.js` | fonctionnement de l'application |
 | `app.css` | design |
 | `manrope.woff2`, `instrument-serif.woff2`, `instrument-serif-italic.woff2`, `jetbrains-mono.woff2` | polices |
 | `icon.svg`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`, `contours.svg` | icônes et motif |
 | `manifest.webmanifest`, `sw.js` | installation sur l'écran d'accueil |
-| `supabase.js`, `xlsx.full.min.js` | bibliothèques (Supabase, lecture des fichiers Excel) |
+| `supabase.js`, `xlsx.full.min.js`, `exceljs.min.js`, `jszip.min.js` | bibliothèques (Supabase, lecture et écriture des fichiers Excel avec images, archives .zip) |
 | `installation-supabase.sql` | script de la base de données (étape 2) — n'a pas besoin d'être sur GitHub, mais peut y rester |
 | `lire-plaque.ts` | fonction IA optionnelle (étape 7) |
 | `GUIDE_INSTALLATION.md`, `README.md` | ce guide et la présentation |
