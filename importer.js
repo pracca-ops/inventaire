@@ -1,6 +1,6 @@
 // Import d'un ancien inventaire (Excel, CSV ou sauvegarde .zip) avec ses photos,
 // et association de photos en lot.
-import { SITES, CATEGORIES, SLOTS, esc, norm, newId, plural, frError } from "./utils.js";
+import { SITES, CATEGORIES, ETATS, SLOTS, esc, norm, newId, plural, frError } from "./utils.js";
 import { loadScript, loadJSZip, openXlsxZip, readSheetImages, makeMatcher, planSlots, attachPhotos, slotFromName, imageType } from "./transfert.js";
 
 const FIELDS = [
@@ -27,6 +27,8 @@ const IGNORED_HEADERS = /^(photo|image|cree|modifie|nombre de photos|a confirmer
 const EMPTY_IMGS = { byRow: new Map(), total: 0, unsupported: 0, cols: new Set() };
 const isErrorValue = (v) => typeof v === "string" && /^#(VALUE|REF|NAME|N\/A|DIV\/0|NUM|NULL|SPILL|CALC|BLOCKED|UNKNOWN|FIELD|CONNECT|BUSY)[!?]?$/i.test(v.trim());
 
+// Texte sur plusieurs lignes (remarques, accessoires) : les retours à la ligne sont conservés
+const strML = (v) => (v === null || v === undefined ? "" : String(v)).replace(/\r\n?/g, "\n").replace(/[ \t\f\v]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 const str = (v) => (v === null || v === undefined ? "" : v instanceof Date ? v.toISOString().slice(0, 10) : String(v)).replace(/\s+/g, " ").trim();
 
 function toISO(v) {
@@ -54,6 +56,8 @@ function toISO(v) {
 function mapEtat(v) {
   const n = norm(v);
   if (!n) return { etat: "À vérifier", note: "" };
+  const exact = ETATS.find((e) => norm(e.v) === n);
+  if (exact) return { etat: exact.v, note: "" };
   if (/\b(bon|ras|r\.a\.s|fonctionnel|ok|tres bon|bon etat|neuf)\b/.test(n) && !/panne|hs|repar/.test(n)) return { etat: "Fonctionnel", note: "" };
   if (/\b(hs|h\.s|panne|en panne|hors service|casse|defectueux)\b/.test(n)) return { etat: "En panne", note: "" };
   if (/repar/.test(n)) return { etat: "En réparation", note: "" };
@@ -63,6 +67,8 @@ function mapEtat(v) {
 function mapSite(v) {
   const n = norm(v);
   if (!n) return { site: "", emp: "" };
+  const same = SITES.find((s) => norm(s) === n);
+  if (same) return { site: same, emp: "" };
   if (n.includes("niamey")) return { site: "Niamey – Laboratoire", emp: /siege/.test(n) ? "Siège" : "" };
   if (n.includes("doutchi")) return { site: "Doutchi", emp: "" };
   if (n.includes("chantier")) return { site: "Chantier", emp: str(v) };
@@ -207,7 +213,17 @@ export function renderImport(ctx) {
         st.file = `${file.name} › ${inner}`;
       }
       const X = await loadXLSX();
-      st.wb = X.read(buf, { type: "array", cellDates: true });
+      if (/\.(csv|txt)$/i.test(inner)) {
+        // CSV : UTF-8 (export de l'application) ou Windows (CSV réenregistré par Excel) ;
+        // valeurs gardées en texte : dates jj/mm/aaaa et zéros en tête intacts
+        const bytes = new Uint8Array(buf);
+        let text;
+        try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+        catch (e) { text = new TextDecoder("windows-1252").decode(bytes); }
+        st.wb = X.read(text.replace(/^\uFEFF/, ""), { type: "string", raw: true });
+      } else {
+        st.wb = X.read(buf, { type: "array", cellDates: true });
+      }
       if (/\.xlsx$/i.test(inner)) { try { st.xzip = await openXlsxZip(buf); } catch (e) { st.xzip = null; } }
       const sheets = st.wb.SheetNames.filter(hasData);
       if (!sheets.length) throw new Error("Ce fichier ne contient aucune donnée lisible.");
@@ -276,14 +292,20 @@ export function renderImport(ctx) {
       if (e.note) notes.push(`Observation d'origine : ${e.note}`);
       const s = mapSite(g(r, "site"));
       let emplacement = [s.emp, str(g(r, "emplacement"))].filter(Boolean).join(" · ");
-      const catTxt = str(g(r, "categorie"));
-      const categorie = mapCat(catTxt) || st.cat || (catTxt ? "Autre" : "");
-      if (catTxt && !mapCat(catTxt)) notes.push(`Catégorie d'origine : ${catTxt}`);
+      const catTxt = str(g(r, "categorie")).slice(0, 60);
+      let categorie = st.cat || "";
+      if (catTxt) {
+        const exact = CATEGORIES.find((c) => norm(c) === norm(catTxt));
+        const near = exact || (srcId ? "" : mapCat(catTxt));
+        // Export de l'application : la catégorie est reprise telle quelle (y compris les catégories libres)
+        categorie = near || catTxt;
+        if (near && !exact) notes.push(`Catégorie d'origine : ${catTxt}`);
+      }
       const d1v = g(r, "etalonnage_dernier"), d2v = g(r, "etalonnage_prochain");
       const d1 = toISO(d1v), d2 = toISO(d2v);
       if (str(d1v) && !d1) notes.push(`Dernier étalonnage (texte d'origine) : ${str(d1v)}`);
       if (str(d2v) && !d2) notes.push(`Prochain étalonnage (texte d'origine) : ${str(d2v)}`);
-      const rem = str(g(r, "remarques"));
+      const rem = strML(g(r, "remarques"));
       if (rem) notes.unshift(rem);
       if (st.extra) {
         const used = new Set(Object.values(st.map).map(Number));
@@ -303,7 +325,7 @@ export function renderImport(ctx) {
 
       out.push({
         designation, categorie, marque: str(g(r, "marque")), modele: str(g(r, "modele")), numero_serie: serie,
-        accessoires: str(g(r, "accessoires")), etat: e.etat, quantite, site: s.site, emplacement,
+        accessoires: strML(g(r, "accessoires")), etat: e.etat, quantite, site: s.site, emplacement,
         etalonnage_dernier: d1, etalonnage_prochain: d2, remarques: notes.join("\n"), a_confirmer,
         photos: {}, miniature: "", origine: srcId ? `Restauré de ${st.file}` : `${st.file} › ${st.sheet}`,
         _srcId: srcId, _line: line,

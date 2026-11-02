@@ -681,3 +681,9 @@ table.preview tr:last-child td { border-bottom: 0; }
 .row-link.is-busy > .i:last-child { display: none; }
 .row-link.is-busy::after { content: ""; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--ink-3); border-right-color: transparent; animation: spin .7s linear infinite; }
 .row-link.is-busy small { color: var(--accent); font-weight: 700; }
+
+/* Catégorie libre (option « Autre ») */
+.cat-free { padding: 12px 14px 14px; border-radius: 16px; background: var(--surface-2); border: 1px dashed var(--line-2); }
+.cat-free:not([hidden]) { animation: enter .3s var(--ease) both; }
+.cat-free .input { background: var(--surface); }
+.cat-free .input:focus { background: var(--surface); }

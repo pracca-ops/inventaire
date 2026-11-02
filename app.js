@@ -9,7 +9,7 @@ import { icon, catIcon, CONTOUR_ART } from "./icons.js";
 import { renderImport, renderPhotoBatch } from "./importer.js";
 import { exportInventory, downloadBlob } from "./transfert.js";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const app = document.getElementById("app");
 const dock = document.getElementById("dock");
 
@@ -26,6 +26,8 @@ const S = {
   form: null,
   installPrompt: null,
   unsub: null,
+  prev: "",
+  listY: 0,
 };
 
 /* ================================================================== */
@@ -53,6 +55,25 @@ function back(fallback = "#/") {
 const myName = () => (S.user && (S.profiles[S.user.id] || (S.user.email || "").split("@")[0])) || "";
 const nameOf = (id) => (id && S.profiles[id]) || (id && S.user && id === S.user.id ? "Vous" : id ? "Un membre de l'équipe" : "—");
 const safeImg = (src) => (typeof src === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(src) ? src : "");
+
+// Catégories saisies librement (option « Autre »), triées
+function customCategories() {
+  const set = new Set();
+  for (const it of S.items) if (it.categorie && !CATEGORIES.includes(it.categorie)) set.add(it.categorie);
+  return [...set].sort((a, b) => a.localeCompare(b, "fr"));
+}
+// Liste complète pour les filtres : catégories standard, catégories libres, puis « Autre »
+function categoryOptions() {
+  return [...CATEGORIES.filter((c) => c !== "Autre"), ...customCategories(), "Autre"];
+}
+// Nettoie une catégorie saisie : reprend l'orthographe d'une catégorie existante si elle correspond
+function cleanCategory(text) {
+  const s = String(text || "").replace(/\s+/g, " ").trim().slice(0, 60);
+  if (!s) return "";
+  const known = [...CATEGORIES, ...customCategories()].find((c) => norm(c) === norm(s));
+  if (known) return known;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function setItems(list) {
   S.items = list.slice().sort((a, b) => String(b.modifie_le).localeCompare(String(a.modifie_le)));
@@ -264,7 +285,6 @@ function viewList() {
     if (k) {
       const t = k.dataset.tile;
       S.filters.tile = S.filters.tile === t ? "" : t;
-      if (t === "") S.filters.tile = "";
       refreshList();
       document.getElementById("toolbar").scrollIntoView({ behavior: "smooth", block: "start" });
       return;
@@ -338,7 +358,7 @@ function refreshChips() {
   el.innerHTML =
     chip("site", "pin", f.site, "Tous les sites", SITES) +
     chip("etat", "checkCircle", f.etat, "Tous les états", ETATS.map((e) => e.v)) +
-    chip("cat", "layers", f.cat, "Toutes catégories", CATEGORIES) +
+    chip("cat", "layers", f.cat, "Toutes catégories", categoryOptions()) +
     (any ? `<button class="chip chip-reset" data-reset>${icon("x")}Effacer</button>` : "");
 }
 
@@ -590,6 +610,10 @@ function viewForm(id) {
     editing, id: d.id, dirty: false,
     photos: Object.fromEntries(SLOTS.map((s) => [s.k, { path: (d.photos || {})[s.k] || "", blob: null, local: "", remote: "", removed: false }])),
   };
+  // Catégorie libre : une catégorie hors liste s'affiche sous « Autre »
+  const catStd = CATEGORIES.includes(d.categorie);
+  const catSel = !d.categorie ? "" : catStd ? d.categorie : "Autre";
+  const catFree = d.categorie && !catStd ? d.categorie : "";
 
   const opt = (list, v) => list.map((o) => `<option ${o === v ? "selected" : ""}>${esc(o)}</option>`).join("");
   const fld = (name, label, value, attrs = "", req = false) => `
@@ -634,7 +658,13 @@ function viewForm(id) {
         ${fld("designation", "Désignation", d.designation, 'autocomplete="off" placeholder="Balance électronique 30 kg" required', true)}
         <div class="field" data-f="categorie">
           <label class="label" for="f-categorie"><span>Catégorie</span><span class="tag-sug">suggéré</span></label>
-          <select class="select" id="f-categorie" name="categorie"><option value="">Choisir une catégorie</option>${opt(CATEGORIES, d.categorie)}</select>
+          <select class="select" id="f-categorie" name="categorie"><option value="">Choisir une catégorie</option>${opt(CATEGORIES, catSel)}</select>
+        </div>
+        <div class="field cat-free" id="cat-free" ${catSel === "Autre" ? "" : "hidden"}>
+          <label class="label" for="f-categorie_libre"><span>Précisez la catégorie</span><span class="hint">facultatif</span></label>
+          <input class="input" id="f-categorie_libre" name="categorie_libre" value="${esc(catFree)}" list="cat-list" autocomplete="off" maxlength="60" placeholder="Ex. : Matériel de forage">
+          <datalist id="cat-list">${customCategories().map((c) => `<option value="${esc(c)}"></option>`).join("")}</datalist>
+          <span class="hint">Laissée vide, la fiche reste dans « Autre ». Les catégories déjà saisies sont proposées.</span>
         </div>
         <div class="row2" style="margin-top:14px">
           ${fld("marque", "Marque", d.marque, 'autocomplete="off" placeholder="Controls"')}
@@ -709,7 +739,8 @@ function viewForm(id) {
   };
   app.onchange = async (e) => {
     const inp = e.target;
-    if (inp.dataset.photo && inp.files?.[0]) { await setPhoto(inp.dataset.photo, inp.files[0]); inp.value = ""; }
+    if (inp.id === "f-categorie") { syncCategoryFree(true); markDirty(); }
+    else if (inp.dataset.photo && inp.files?.[0]) { await setPhoto(inp.dataset.photo, inp.files[0]); inp.value = ""; }
     else if (inp.id === "ph-gallery" && inp.files?.length) {
       const free = SLOTS.map((s) => s.k).filter((k) => !hasPhoto(k));
       const files = Array.from(inp.files).slice(0, free.length || 0);
@@ -767,6 +798,17 @@ function viewForm(id) {
   }
 }
 
+// Affiche le champ de saisie libre seulement quand « Autre » est choisi
+function syncCategoryFree(focus = false) {
+  const sel = document.getElementById("f-categorie");
+  const box = document.getElementById("cat-free");
+  if (!sel || !box) return;
+  const show = sel.value === "Autre";
+  const wasHidden = box.hidden;
+  box.hidden = !show;
+  if (show && wasHidden && focus) document.getElementById("f-categorie_libre").focus();
+}
+
 const hasPhoto = (k) => { const st = S.form?.photos[k]; return !!st && (!!st.blob || (!!st.path && !st.removed)); };
 
 function paintSlot(k) {
@@ -815,8 +857,11 @@ async function slotBlob(k) {
 function readForm() {
   const f = document.getElementById("form");
   const v = (n) => (f.elements[n]?.value ?? "").trim();
+  const cat = v("categorie");
   return {
-    designation: v("designation"), categorie: v("categorie"), marque: v("marque"), modele: v("modele"),
+    designation: v("designation"),
+    categorie: cat === "Autre" ? (cleanCategory(v("categorie_libre")) || "Autre") : cat,
+    marque: v("marque"), modele: v("modele"),
     numero_serie: v("numero_serie"), accessoires: v("accessoires"),
     etat: f.querySelector('input[name="etat"]:checked')?.value || "À vérifier",
     quantite: Math.max(1, parseInt(v("quantite"), 10) || 1),
@@ -851,6 +896,7 @@ async function suggestFromPhotos() {
       el.closest(".field")?.classList.add("suggested");
       n++;
     }
+    syncCategoryFree();
     if (n) {
       document.getElementById("f-a_confirmer").checked = true;
       S.form.dirty = true;
@@ -930,7 +976,9 @@ async function saveForm() {
     if (toRemove.length) S.be.removePhotos(toRemove).catch(() => {});
     F.dirty = false;
     toast(editing ? "Modifications enregistrées" : "Fiche enregistrée");
-    go(`#/fiche/${encodeURIComponent(saved.id)}`, { replace: true });
+    // Après une modification ouverte depuis la fiche : on revient à cette fiche (sans empiler de page)
+    if (editing && S.nav > 0) { S.nav--; history.back(); }
+    else go(`#/fiche/${encodeURIComponent(saved.id)}`, { replace: true });
   } catch (ex) {
     btn.classList.remove("is-busy");
     errBox.textContent = frError(ex);
