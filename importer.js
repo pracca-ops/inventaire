@@ -1,6 +1,6 @@
 // Import d'un ancien inventaire (Excel, CSV ou sauvegarde .zip) avec ses photos,
 // et association de photos en lot.
-import { SITES, CATEGORIES, ETATS, SLOTS, esc, norm, newId, plural, frError } from "./utils.js";
+import { SITES, CATEGORIES, ETATS, SLOTS, esc, norm, keyOf, newId, plural, frError } from "./utils.js";
 import { loadScript, loadJSZip, openXlsxZip, readSheetImages, makeMatcher, planSlots, attachPhotos, slotFromName, imageType } from "./transfert.js";
 
 const FIELDS = [
@@ -56,7 +56,7 @@ function toISO(v) {
 function mapEtat(v) {
   const n = norm(v);
   if (!n) return { etat: "À vérifier", note: "" };
-  const exact = ETATS.find((e) => norm(e.v) === n);
+  const exact = ETATS.find((e) => keyOf(e.v) === keyOf(v));
   if (exact) return { etat: exact.v, note: "" };
   if (/\b(bon|ras|r\.a\.s|fonctionnel|ok|tres bon|bon etat|neuf)\b/.test(n) && !/panne|hs|repar/.test(n)) return { etat: "Fonctionnel", note: "" };
   if (/\b(hs|h\.s|panne|en panne|hors service|casse|defectueux)\b/.test(n)) return { etat: "En panne", note: "" };
@@ -64,18 +64,21 @@ function mapEtat(v) {
   return { etat: "À vérifier", note: str(v) };
 }
 
-function mapSite(v) {
+function mapSite(v, fromApp = false) {
   const n = norm(v);
   if (!n) return { site: "", emp: "" };
-  const same = SITES.find((s) => norm(s) === n);
+  const same = SITES.find((s) => keyOf(s) === keyOf(v));
   if (same) return { site: same, emp: "" };
+  // Export de l'application : un site libre est repris tel quel
+  if (fromApp) return { site: str(v).slice(0, 60), emp: "" };
   if (n.includes("niamey")) return { site: "Niamey – Laboratoire", emp: /siege/.test(n) ? "Siège" : "" };
   if (n.includes("doutchi")) return { site: "Doutchi", emp: "" };
   if (n.includes("chantier")) return { site: "Chantier", emp: str(v) };
   if (/pret|partenaire/.test(n)) return { site: "Prêté à un partenaire", emp: str(v) };
   const exact = SITES.find((s) => norm(s) === n);
   if (exact) return { site: exact, emp: "" };
-  return { site: "Autre", emp: str(v) };
+  // Lieu inconnu : conservé comme site libre (comme l'option « Autre » + saisie)
+  return { site: str(v).slice(0, 60), emp: "" };
 }
 
 // Noms de feuilles ou d'essais courants au laboratoire → catégorie
@@ -290,12 +293,12 @@ export function renderImport(ctx) {
       }
       const e = mapEtat(g(r, "etat"));
       if (e.note) notes.push(`Observation d'origine : ${e.note}`);
-      const s = mapSite(g(r, "site"));
+      const s = mapSite(g(r, "site"), !!srcId);
       let emplacement = [s.emp, str(g(r, "emplacement"))].filter(Boolean).join(" · ");
       const catTxt = str(g(r, "categorie")).slice(0, 60);
       let categorie = st.cat || "";
       if (catTxt) {
-        const exact = CATEGORIES.find((c) => norm(c) === norm(catTxt));
+        const exact = CATEGORIES.find((c) => keyOf(c) === keyOf(catTxt));
         const near = exact || (srcId ? "" : mapCat(catTxt));
         // Export de l'application : la catégorie est reprise telle quelle (y compris les catégories libres)
         categorie = near || catTxt;

@@ -1,6 +1,6 @@
 import { createBackend } from "./data.js";
 import {
-  SITES, CATEGORIES, ETATS, SLOTS, etatClass, esc, norm, newId, fmtDate, fmtDateTime, fmtDateFR, relTime,
+  SITES, CATEGORIES, ETATS, SLOTS, etatClass, esc, norm, keyOf, newId, fmtDate, fmtDateTime, fmtDateFR, relTime,
   calibration, daysUntil, parseISODate, isToCheck, isBroken, isCalibDue, initials, plural, debounce, frError,
   todayISO,
 } from "./utils.js";
@@ -9,7 +9,7 @@ import { icon, catIcon, CONTOUR_ART } from "./icons.js";
 import { renderImport, renderPhotoBatch } from "./importer.js";
 import { exportInventory, downloadBlob } from "./transfert.js";
 
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const app = document.getElementById("app");
 const dock = document.getElementById("dock");
 
@@ -56,21 +56,21 @@ const myName = () => (S.user && (S.profiles[S.user.id] || (S.user.email || "").s
 const nameOf = (id) => (id && S.profiles[id]) || (id && S.user && id === S.user.id ? "Vous" : id ? "Un membre de l'équipe" : "—");
 const safeImg = (src) => (typeof src === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(src) ? src : "");
 
-// Catégories saisies librement (option « Autre »), triées
-function customCategories() {
+// Valeurs saisies librement avec l'option « Autre » (catégorie, site), triées
+function customValues(field, std) {
   const set = new Set();
-  for (const it of S.items) if (it.categorie && !CATEGORIES.includes(it.categorie)) set.add(it.categorie);
+  for (const it of S.items) if (it[field] && !std.includes(it[field])) set.add(it[field]);
   return [...set].sort((a, b) => a.localeCompare(b, "fr"));
 }
-// Liste complète pour les filtres : catégories standard, catégories libres, puis « Autre »
-function categoryOptions() {
-  return [...CATEGORIES.filter((c) => c !== "Autre"), ...customCategories(), "Autre"];
-}
-// Nettoie une catégorie saisie : reprend l'orthographe d'une catégorie existante si elle correspond
-function cleanCategory(text) {
+const customCategories = () => customValues("categorie", CATEGORIES);
+const customSites = () => customValues("site", SITES);
+// Liste complète pour les filtres : valeurs standard, valeurs libres, puis « Autre »
+const optionsFor = (field, std) => [...std.filter((c) => c !== "Autre"), ...customValues(field, std), "Autre"];
+// Nettoie une valeur saisie : reprend l'orthographe d'une valeur existante si elle correspond
+function cleanFree(text, field, std) {
   const s = String(text || "").replace(/\s+/g, " ").trim().slice(0, 60);
   if (!s) return "";
-  const known = [...CATEGORIES, ...customCategories()].find((c) => norm(c) === norm(s));
+  const known = [...std, ...customValues(field, std)].find((c) => keyOf(c) === keyOf(s));
   if (known) return known;
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -356,9 +356,9 @@ function refreshChips() {
     </span>`;
   const any = f.q || f.site || f.etat || f.cat || f.tile;
   el.innerHTML =
-    chip("site", "pin", f.site, "Tous les sites", SITES) +
+    chip("site", "pin", f.site, "Tous les sites", optionsFor("site", SITES)) +
     chip("etat", "checkCircle", f.etat, "Tous les états", ETATS.map((e) => e.v)) +
-    chip("cat", "layers", f.cat, "Toutes catégories", categoryOptions()) +
+    chip("cat", "layers", f.cat, "Toutes catégories", optionsFor("categorie", CATEGORIES)) +
     (any ? `<button class="chip chip-reset" data-reset>${icon("x")}Effacer</button>` : "");
 }
 
@@ -614,6 +614,10 @@ function viewForm(id) {
   const catStd = CATEGORIES.includes(d.categorie);
   const catSel = !d.categorie ? "" : catStd ? d.categorie : "Autre";
   const catFree = d.categorie && !catStd ? d.categorie : "";
+  // Site libre : un site hors liste s'affiche sous « Autre »
+  const siteStd = SITES.includes(d.site);
+  const siteSel = !d.site ? "" : siteStd ? d.site : "Autre";
+  const siteFree = d.site && !siteStd ? d.site : "";
 
   const opt = (list, v) => list.map((o) => `<option ${o === v ? "selected" : ""}>${esc(o)}</option>`).join("");
   const fld = (name, label, value, attrs = "", req = false) => `
@@ -696,8 +700,14 @@ function viewForm(id) {
         <div class="field">
           <span class="label">Site</span>
           <div class="choice" role="radiogroup" aria-label="Site">
-            ${SITES.map((s, i) => `<span><input type="radio" name="site" id="site-${i}" value="${esc(s)}" ${s === d.site ? "checked" : ""}><label for="site-${i}">${esc(s)}</label></span>`).join("")}
+            ${SITES.map((s, i) => `<span><input type="radio" name="site" id="site-${i}" value="${esc(s)}" ${s === siteSel ? "checked" : ""}><label for="site-${i}">${esc(s)}</label></span>`).join("")}
           </div>
+        </div>
+        <div class="field cat-free" id="site-free" ${siteSel === "Autre" ? "" : "hidden"}>
+          <label class="label" for="f-site_libre"><span>Précisez le site</span><span class="hint">facultatif</span></label>
+          <input class="input" id="f-site_libre" name="site_libre" value="${esc(siteFree)}" list="site-list" autocomplete="off" maxlength="60" placeholder="Ex. : Antenne d'Agadez">
+          <datalist id="site-list">${customSites().map((c) => `<option value="${esc(c)}"></option>`).join("")}</datalist>
+          <span class="hint">Laissé vide, le site reste « Autre ». Les sites déjà saisis sont proposés.</span>
         </div>
         ${fld("emplacement", "Emplacement précis", d.emplacement, 'autocomplete="off" placeholder="Salle des essais, armoire 2…"')}
       </section>
@@ -740,6 +750,7 @@ function viewForm(id) {
   app.onchange = async (e) => {
     const inp = e.target;
     if (inp.id === "f-categorie") { syncCategoryFree(true); markDirty(); }
+    else if (inp.name === "site") { syncSiteFree(true); markDirty(); }
     else if (inp.dataset.photo && inp.files?.[0]) { await setPhoto(inp.dataset.photo, inp.files[0]); inp.value = ""; }
     else if (inp.id === "ph-gallery" && inp.files?.length) {
       const free = SLOTS.map((s) => s.k).filter((k) => !hasPhoto(k));
@@ -809,6 +820,16 @@ function syncCategoryFree(focus = false) {
   if (show && wasHidden && focus) document.getElementById("f-categorie_libre").focus();
 }
 
+// Même principe pour le site : champ libre quand « Autre » est coché
+function syncSiteFree(focus = false) {
+  const box = document.getElementById("site-free");
+  if (!box) return;
+  const show = document.querySelector('#form input[name="site"]:checked')?.value === "Autre";
+  const wasHidden = box.hidden;
+  box.hidden = !show;
+  if (show && wasHidden && focus) document.getElementById("f-site_libre").focus();
+}
+
 const hasPhoto = (k) => { const st = S.form?.photos[k]; return !!st && (!!st.blob || (!!st.path && !st.removed)); };
 
 function paintSlot(k) {
@@ -860,12 +881,15 @@ function readForm() {
   const cat = v("categorie");
   return {
     designation: v("designation"),
-    categorie: cat === "Autre" ? (cleanCategory(v("categorie_libre")) || "Autre") : cat,
+    categorie: cat === "Autre" ? (cleanFree(v("categorie_libre"), "categorie", CATEGORIES) || "Autre") : cat,
     marque: v("marque"), modele: v("modele"),
     numero_serie: v("numero_serie"), accessoires: v("accessoires"),
     etat: f.querySelector('input[name="etat"]:checked')?.value || "À vérifier",
     quantite: Math.max(1, parseInt(v("quantite"), 10) || 1),
-    site: f.querySelector('input[name="site"]:checked')?.value || "",
+    site: (() => {
+      const site = f.querySelector('input[name="site"]:checked')?.value || "";
+      return site === "Autre" ? (cleanFree(v("site_libre"), "site", SITES) || "Autre") : site;
+    })(),
     emplacement: v("emplacement"),
     etalonnage_dernier: v("etalonnage_dernier") || null,
     etalonnage_prochain: v("etalonnage_prochain") || null,

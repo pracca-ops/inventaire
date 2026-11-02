@@ -1,7 +1,7 @@
 // Service worker : permet l'installation sur l'écran d'accueil et ouvre
 // l'application plus vite. Les données (Supabase) ne sont jamais mises en cache.
 // Changer VERSION à chaque mise à jour pour que les téléphones reprennent les nouveaux fichiers.
-const VERSION = "gc-inventaire-v4";
+const VERSION = "gc-inventaire-v5";
 const COQUILLE = [
   "./",
   "./index.html",

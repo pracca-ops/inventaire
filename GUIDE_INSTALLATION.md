@@ -5,7 +5,7 @@ Application web d'inventaire du matériel, utilisable sur téléphone (Android) 
 - **Hébergement de l'application** : GitHub Pages (gratuit)
 - **Base de données, comptes et photos** : Supabase (gratuit)
 
-Version décrite : **1.2.0**. La version installée s'affiche dans **Outils**, rubrique **Application**.
+Version décrite : **1.3.0**. La version installée s'affiche dans **Outils**, rubrique **Application**.
 
 > Les 30 fichiers de l'application sont **tous au même niveau, sans sous-dossier** : on les sélectionne tous et on les envoie en une fois sur GitHub.
 
@@ -99,7 +99,7 @@ Allez dans **Outils**, puis **Importer un fichier**. Le fichier peut être un Ex
 - Toutes les fiches importées sont marquées **« À confirmer »**.
 - Règles automatiques :
   - « Bon » et « RAS » deviennent *Fonctionnel* ; « HS » et « Panne » deviennent *En panne* ;
-  - « Niamey-Siège » devient *Niamey – Laboratoire*, avec l'emplacement *Siège* ;
+  - « Niamey-Siège » devient *Niamey – Laboratoire*, avec l'emplacement *Siège* ; « Doutchi », « Chantier… » et « Prêté… » sont reconnus ; **tout autre lieu est conservé comme site libre** (par exemple *Agadez*) ;
   - dans la colonne « ID/Nombre », un nombre devient une quantité et un texte devient un identifiant.
 
 ## 9. Photos : export, sauvegarde, ajout en lot
@@ -117,9 +117,9 @@ Conseil : faites **une sauvegarde complète chaque mois**.
 
 ### Compatibilité des anciens exports
 
-La version 1.2 relit **tous les exports des versions précédentes**, avec les mêmes identifiants, dates, états, sites, catégories et remarques sur plusieurs lignes :
+La version 1.3 relit **tous les exports des versions précédentes**, avec les mêmes identifiants, dates, états, sites, catégories et remarques sur plusieurs lignes :
 
-| Export | Relu par la version 1.2 ? |
+| Export | Relu par la version 1.3 ? |
 |---|---|
 | CSV de la version 1.0 (`inventaire-geoconsulting-AAAA-MM-JJ.csv`) | ✅ Oui. Les dates jj/mm/aaaa restent correctes et les n° de série commençant par 0 sont conservés. Ce format ne contenait pas les photos. |
 | Le même CSV, ouvert puis réenregistré dans Excel | ✅ Oui, les accents sont conservés. |
@@ -136,7 +136,7 @@ Une mise à jour remplace les fichiers de l'application sur GitHub. **Les fiches
 
 ### Étape A — GitHub
 
-1. Décompressez le dossier de mise à jour reçu (par exemple `mise-a-jour-v1.2`). Il ne contient **pas** de `config.js`.
+1. Décompressez le dossier de mise à jour reçu (par exemple `mise-a-jour-v1.3`). Il ne contient **pas** de `config.js`.
 2. Sur GitHub, dans votre dépôt, cliquez sur **Add file**, puis **Upload files**, puis **choose your files**.
 3. Dans le dossier de mise à jour, appuyez sur **Ctrl + A** pour tout sélectionner, puis cliquez sur **Ouvrir**. Les fichiers de même nom sont remplacés.
 4. Cliquez sur **Commit changes**.
@@ -150,10 +150,14 @@ Une mise à jour remplace les fichiers de l'application sur GitHub. **Les fiches
 
 Seulement si les notes de la version le demandent : ouvrez **SQL Editor**, collez le script fourni, puis cliquez sur **Run**. Le script d'installation peut être relancé sans danger, car il ne supprime aucune donnée.
 
-**Version 1.2 : aucun changement dans Supabase.** La catégorie libre est enregistrée dans la colonne `categorie`, qui accepte déjà n'importe quel texte.
+**Versions 1.2 et 1.3 : aucun changement dans Supabase.** La catégorie libre et le site libre sont enregistrés dans les colonnes `categorie` et `site`, qui acceptent déjà n'importe quel texte.
 
 ### Notes de version
 
+- **1.3.0**
+  - Site **« Autre » avec saisie libre** (par exemple *Antenne d'Agadez*) : les sites déjà saisis sont proposés, et les filtres de la liste les affichent.
+  - À l'import, un lieu inconnu devient un site libre (auparavant : « Autre », avec le lieu dans l'emplacement).
+  - Les libellés écrits avec un simple tiret (« Niamey - Laboratoire ») sont reconnus.
 - **1.2.0**
   - Catégorie **« Autre » avec saisie libre** : les catégories déjà saisies sont proposées, et les filtres de la liste les affichent.
   - Relecture des exports CSV de la version 1.0, y compris s'ils ont été réenregistrés dans Excel.

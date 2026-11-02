@@ -35,6 +35,11 @@ export function norm(v) {
   return String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
+// Pour comparer deux libellés : ignore accents, majuscules, types de tirets et espaces autour de « - / · »
+export function keyOf(v) {
+  return norm(v).replace(/[\u2010-\u2015\u2212]/g, "-").replace(/\s*([-/·])\s*/g, "$1").replace(/\s+/g, " ");
+}
+
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export function newId() {
   const a = new Uint32Array(5);

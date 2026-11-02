@@ -1,9 +1,9 @@
 # Inventaire GéoConsulting
 
-Application web d'inventaire du matériel du laboratoire de GéoConsulting Sarl (Niamey et Doutchi). Version 1.2.0.
+Application web d'inventaire du matériel du laboratoire de GéoConsulting Sarl (Niamey et Doutchi). Version 1.3.0.
 
 - Fiches avec photos (appareil, plaque signalétique, autre vue), état, site, étalonnage, remarques
-- Catégories de la liste, ou catégorie libre avec l'option « Autre »
+- Catégories et sites de la liste, ou saisie libre avec l'option « Autre »
 - Tableau de bord : total, à vérifier, pannes et réparations, étalonnages échus ou à moins de 30 jours
 - Mise à jour en temps réel entre les téléphones de l'équipe
 - Import de l'ancien inventaire Excel **avec ses images**, CSV ou sauvegarde .zip (exports des versions 1.0 et 1.1 compris)
